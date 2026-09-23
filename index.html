@@ -1,0 +1,783 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>GATEKEEPER — the machine writes the rules</title>
+<meta name="description" content="Every run, the machine invents the arena's rules. Survive 60 seconds under them. Powered by the Pollinations text and image APIs.">
+<style>
+  :root {
+    --bg: #07080a;
+    --panel: #0d0f13;
+    --line: #23262d;
+    --ink: #e8e6e1;
+    --dim: #8b8f98;
+    --accent: #d8ff3e;
+    --danger: #ff4d3d;
+    --ok: #57e08d;
+    --mono: ui-monospace, "SF Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+    --display: "Arial Narrow", "Helvetica Neue", Inter, system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink); }
+  body {
+    font-family: var(--mono);
+    font-size: 14px;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    touch-action: none;
+  }
+  header {
+    display: flex; align-items: center; gap: 14px;
+    padding: 10px 14px; border-bottom: 1px solid var(--line);
+    background: var(--panel);
+  }
+  .brand {
+    font-family: var(--display);
+    font-weight: 800; letter-spacing: .16em; text-transform: uppercase;
+    font-size: 15px;
+  }
+  .brand b { color: var(--accent); }
+  .hud { margin-left: auto; display: flex; gap: 16px; align-items: center; font-variant-numeric: tabular-nums; }
+  .hud span { color: var(--dim); }
+  .hud b { color: var(--ink); font-weight: 600; }
+  .strikes b { color: var(--danger); }
+  main { position: relative; flex: 1; min-height: 0; display: flex; }
+  #stage { position: relative; flex: 1; min-height: 0; }
+  canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+  #rules {
+    position: absolute; left: 14px; top: 14px; max-width: min(330px, 46vw);
+    background: rgba(7,8,10,.82); border: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+  }
+  #rules h2 {
+    margin: 0; padding: 7px 11px; font-size: 10px; letter-spacing: .18em;
+    text-transform: uppercase; color: var(--dim); border-bottom: 1px solid var(--line);
+  }
+  #rules ol { margin: 0; padding: 8px 11px 9px 26px; display: grid; gap: 5px; }
+  #rules li { font-size: 12.5px; line-height: 1.35; }
+  #rules li i { color: var(--accent); font-style: normal; }
+  .overlay {
+    position: absolute; inset: 0; display: grid; place-items: center; padding: 20px;
+    background: radial-gradient(120% 90% at 50% 0%, rgba(7,8,10,.72), rgba(7,8,10,.96));
+    z-index: 5;
+  }
+  .overlay[hidden] { display: none; }
+  .card {
+    width: 100%; max-width: 620px; background: var(--panel);
+    border: 1px solid var(--line); padding: 26px;
+  }
+  .card h1 {
+    font-family: var(--display); font-weight: 800; text-transform: uppercase;
+    letter-spacing: .04em; font-size: clamp(34px, 7vw, 56px); line-height: .95; margin: 0 0 6px;
+  }
+  .card h1 em { font-style: normal; color: var(--accent); }
+  .kicker { font-size: 10px; letter-spacing: .2em; text-transform: uppercase; color: var(--dim); margin-bottom: 14px; }
+  .lede { font-size: 14px; line-height: 1.6; color: #c9c7c1; margin: 0 0 18px; max-width: 52ch; }
+  .lede b { color: var(--accent); font-weight: 600; }
+  .btn {
+    font-family: var(--display); font-weight: 800; text-transform: uppercase;
+    letter-spacing: .12em; font-size: 15px; padding: 13px 26px; cursor: pointer;
+    background: var(--accent); color: #0a0b0d; border: 0;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn[disabled] { opacity: .5; cursor: progress; }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 18px; }
+  .stats { display: flex; gap: 26px; flex-wrap: wrap; margin: 4px 0 18px; }
+  .stat span { display: block; font-size: 10px; letter-spacing: .16em; text-transform: uppercase; color: var(--dim); }
+  .stat b { font-size: 30px; font-variant-numeric: tabular-nums; }
+  #verdict {
+    border-left: 2px solid var(--accent); padding: 2px 0 2px 12px;
+    font-size: 13.5px; line-height: 1.55; color: #d5d3cd; margin: 16px 0 0; min-height: 20px;
+  }
+  #verdict.pending { border-left-color: var(--line); color: var(--dim); }
+  .terms { margin: 0; padding: 0 0 0 18px; display: grid; gap: 4px; }
+  .terms li { font-size: 12.5px; line-height: 1.4; }
+  .terms li i { color: var(--accent); font-style: normal; }
+  footer {
+    padding: 8px 14px; border-top: 1px solid var(--line); background: var(--panel);
+    display: flex; gap: 14px; align-items: center; flex-wrap: wrap;
+    font-size: 11px; color: var(--dim);
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+  .pill { border: 1px solid var(--line); padding: 2px 7px; letter-spacing: .08em; text-transform: uppercase; font-size: 10px; }
+  .share { display: flex; gap: 8px; align-items: center; margin-top: 14px; }
+  .share code {
+    flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    background: #0a0b0e; border: 1px solid var(--line); padding: 9px 11px; color: #b9b7b1;
+  }
+  @media (max-width: 620px) {
+    #rules { max-width: none; left: 10px; right: 10px; top: 10px; }
+    .card { padding: 20px; }
+    .stat b { font-size: 24px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">Gate<b>keeper</b></div>
+  <div class="hud">
+    <span>time <b id="hud-time">60.0</b></span>
+    <span>score <b id="hud-score">0</b></span>
+    <span class="strikes">strikes <b id="hud-strikes">0/3</b></span>
+  </div>
+</header>
+
+<main>
+  <div id="stage">
+    <canvas id="arena"></canvas>
+    <section id="rules" hidden>
+      <h2 id="rules-title">Today's terms</h2>
+      <ol id="rules-list"></ol>
+    </section>
+  </div>
+
+  <div class="overlay" id="screen-start">
+    <div class="card">
+      <div class="kicker">A 60-second arcade arena · rules written live by an AI</div>
+      <h1>The machine<br>writes the <em>rules</em>.<br>You survive them.</h1>
+      <p class="lede">
+        Every run, a language model invents the terms of this arena — which colour feeds you,
+        which colour is fatal, whether you may ever stand still. The terms are generated by
+        <b>Pollinations</b> text, the arena art by <b>Pollinations</b> image. Nothing is prewritten;
+        no two runs are the same. Sixty seconds. Three strikes.
+      </p>
+      <div class="row">
+        <button class="btn" id="btn-begin">Read the terms &amp; begin</button>
+        <button class="btn ghost" id="btn-free">Skip the shared terms</button>
+      </div>
+      <div class="row">
+        <span class="pill" id="pill-best">best 0</span>
+        <span class="pill">daily terms are shared — same ruleset for everyone today</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="screen-end" hidden>
+    <div class="card">
+      <div class="kicker" id="end-kicker">Run complete</div>
+      <h1 id="end-title">You survived</h1>
+      <div class="stats">
+        <div class="stat"><span>survived</span><b id="end-time">0.0s</b></div>
+        <div class="stat"><span>score</span><b id="end-score">0</b></div>
+        <div class="stat"><span>orbs</span><b id="end-orbs">0</b></div>
+        <div class="stat"><span>strikes</span><b id="end-strikes">0</b></div>
+      </div>
+      <div class="kicker">the terms you were given</div>
+      <ol class="terms" id="end-terms"></ol>
+      <p id="verdict" class="pending">the gatekeeper is judging your run…</p>
+      <div class="share">
+        <code id="share-text">…</code>
+        <button class="btn ghost" id="btn-copy">Copy</button>
+      </div>
+      <div class="row">
+        <button class="btn" id="btn-again">Run again</button>
+        <span class="pill" id="end-best">best 0</span>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <span>Powered by <a href="https://pollinations.ai" target="_blank" rel="noopener">Pollinations.ai</a></span>
+  <span>text · <a href="https://text.pollinations.ai" target="_blank" rel="noopener">text.pollinations.ai</a></span>
+  <span>image · <a href="https://image.pollinations.ai" target="_blank" rel="noopener">image.pollinations.ai</a></span>
+  <span id="source-state">terms: idle</span>
+</footer>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ *
+ * GATEKEEPER
+ * Rules are generated live by the Pollinations text API; the arena art
+ * comes from the Pollinations image API. Both are keyless public
+ * endpoints, so the app runs with no setup and no backend.
+ * ------------------------------------------------------------------ */
+
+const TEXT_API = "https://text.pollinations.ai/";
+const IMAGE_API = "https://image.pollinations.ai/prompt/";
+
+const CONFIG = {
+  roundSeconds: 60,
+  maxStrikes: 3,
+  playerRadius: 13,
+  orbRadius: 8,
+  accel: 2100,
+  friction: 0.86,
+  maxSpeed: 460,
+  idleStrikeSeconds: 0.7,
+  spawnEvery: 0.34,
+  spawnRampEvery: 0.5,
+  maxOrbs: 26,
+  scorePerOrb: 10,
+  scorePerSecond: 1,
+  defaultScoreColor: "cyan",
+  defaultHazardColor: "red",
+};
+
+// The machine may only compose terms from this enum; anything else is
+// discarded and the arena falls back to a legal local ruleset.
+const KINDS = {
+  only_color: { needsColor: true, label: "scoring" },
+  dodge_color: { needsColor: true, label: "fatal" },
+  no_stop: { needsColor: false, label: "motion" },
+  reverse: { needsColor: false, label: "control" },
+  shrink: { needsColor: false, label: "space" },
+  ramp: { needsColor: false, label: "pressure" },
+};
+
+const PALETTE = {
+  cyan: "#3ad1e6", lime: "#a6e83a", amber: "#ffb03a",
+  magenta: "#ff4fd8", red: "#ff4d3d", violet: "#9d7bff",
+};
+
+const FALLBACK_SETS = [
+  { name: "The Forgiving Line", colour: "lime", rules: [
+    { kind: "only_color", color: "lime", text: "Only lime sustains you. Everything else is decoration." },
+    { kind: "no_stop", color: null, text: "Standing still is a confession. Keep moving." },
+    { kind: "ramp", color: null, text: "The pressure doubles at the halfway mark." } ] },
+  { name: "Red Means Business", colour: "red", rules: [
+    { kind: "dodge_color", color: "red", text: "Red is fatal. Do not be curious about it." },
+    { kind: "shrink", color: null, text: "The walls are closing in. Politely, but closing." } ] },
+  { name: "Mirror Terms", colour: "cyan", rules: [
+    { kind: "reverse", color: null, text: "Your controls are inverted. Adapt." },
+    { kind: "only_color", color: "cyan", text: "Cyan only. The rest are lies." } ] },
+  { name: "Violet Ultimatum", colour: "violet", rules: [
+    { kind: "only_color", color: "violet", text: "Violet is the only food in this arena." },
+    { kind: "dodge_color", color: "red", text: "The red ones end you on contact." },
+    { kind: "no_stop", color: null, text: "Idleness is punished within a second." } ] },
+  { name: "Everything At Once", colour: "amber", rules: [
+    { kind: "dodge_color", color: "magenta", text: "Magenta is lethal. Sidestep it." },
+    { kind: "reverse", color: null, text: "Your hands betray you: controls are inverted." },
+    { kind: "ramp", color: null, text: "Orb flow doubles halfway through." } ] },
+];
+
+const $ = (id) => document.getElementById(id);
+const setState = (text) => { $("source-state").textContent = "terms: " + text; };
+
+/* ----------------------------- generation ----------------------------- */
+
+async function fetchText(prompt, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(TEXT_API + encodeURIComponent(prompt), { signal: controller.signal });
+    if (!response.ok) throw new Error("text " + response.status);
+    return await response.text();
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function extractJson(raw) {
+  if (!raw) return null;
+  const start = raw.indexOf("{");
+  const end = raw.lastIndexOf("}");
+  if (start === -1 || end <= start) return null;
+  try { return JSON.parse(raw.slice(start, end + 1)); } catch { return null; }
+}
+
+/** Keep only terms the arena can actually adjudicate. */
+function sanitizeRuleset(candidate) {
+  if (!candidate || !Array.isArray(candidate.rules)) return null;
+  const seen = new Set();
+  const rules = [];
+  for (const rule of candidate.rules) {
+    const kind = String(rule && rule.kind || "").toLowerCase();
+    if (!KINDS[kind] || seen.has(kind)) continue;
+    let color = null;
+    if (KINDS[kind].needsColor) {
+      const raw = String((rule && rule.color) || "").toLowerCase();
+      color = Object.keys(PALETTE).includes(raw) ? raw : pick(Object.keys(PALETTE));
+    }
+    const text = String((rule && rule.text) || "").replace(/\s+/g, " ").trim().slice(0, 90);
+    if (!text) continue;
+    seen.add(kind);
+    rules.push({ kind, color, text });
+    if (rules.length === 3) break;
+  }
+  if (rules.length < 2) return null;
+  const name = String(candidate.name || "Unnamed Terms").replace(/[<>]/g, "").trim().slice(0, 48);
+  const flavour = String(candidate.flavour || "").replace(/[<>]/g, "").trim().slice(0, 160);
+  return { name, rules, flavour, written: "gatekeeper" };
+}
+
+const pick = (list) => list[Math.floor(Math.random() * list.length)];
+
+function fallbackRuleset(seedString) {
+  const index = [...seedString].reduce((total, ch) => total + ch.charCodeAt(0), 0) % FALLBACK_SETS.length;
+  const set = FALLBACK_SETS[index];
+  return { name: set.name, rules: set.rules, flavour: "Local terms — the gatekeeper was unreachable.", written: "local" };
+}
+
+const RULE_PROMPT = (seedString) =>
+  'You are the GATEKEEPER of a 60-second arcade arena. Invent the rules of this run. ' +
+  'Reply with ONLY minified JSON, no markdown, no explanation, in exactly this shape: ' +
+  '{"name":"<2-4 word arena name>","rules":[{"kind":"<kind>","color":"<colour or null>","text":"<one short line, max 70 chars, second person>"}],"flavour":"<one sentence of menace, max 140 chars>"}. ' +
+  'Allowed "kind" values (use 2 or 3, each at most once): ' +
+  '"only_color" (only that colour scores; "color" required), ' +
+  '"dodge_color" (that colour kills on contact; "color" required), ' +
+  '"no_stop" (standing still is punished), "reverse" (controls inverted), "shrink" (walls close in), "ramp" (orb speed doubles at halfway). ' +
+  'Allowed "color" values: cyan, lime, amber, magenta, red, violet. Use null when the kind needs no colour. ' +
+  'Deterministic seed: ' + seedString;
+
+async function generateRuleset(seedString) {
+  setState("asking the gatekeeper…");
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const raw = await fetchText(RULE_PROMPT(seedString), attempt === 1 ? 20000 : 22000);
+      window.__gatekeeperDebug = { attempt, raw, rejected: !sanitizeRuleset(extractJson(raw)) };
+      const parsed = sanitizeRuleset(extractJson(raw));
+      if (parsed) { setState("written by live model"); return parsed; }
+      setState("model returned unusable terms, retrying…");
+    } catch (error) {
+      setState("text API " + (error && error.name === "AbortError" ? "timed out" : "failed") + ", retrying…");
+    }
+  }
+  setState("fell back to local terms");
+  return fallbackRuleset(seedString);
+}
+
+function imageUrl(prompt, seed) {
+  return IMAGE_API + encodeURIComponent(prompt) +
+    "?width=1024&height=576&seed=" + seed + "&nologo=true&model=flux";
+}
+
+function loadImage(url, timeoutMs = 25000) {
+  return new Promise((resolve) => {
+    const image = new Image();
+    const timer = setTimeout(() => resolve(null), timeoutMs);
+    image.onload = () => { clearTimeout(timer); resolve(image); };
+    image.onerror = () => { clearTimeout(timer); resolve(null); };
+    // No crossOrigin: the backdrop is only drawn, never read back, and asking
+    // for CORS would make the load fail on hosts that omit the headers.
+    image.src = url;
+  });
+}
+
+async function generateVerdict(summary) {
+  const prompt =
+    'You are the GATEKEEPER. The challenger ' + summary.outcome + ' after ' +
+    summary.seconds.toFixed(1) + ' seconds with a score of ' + summary.score +
+    ' under these terms: "' + summary.terms.join(" / ") + '". ' +
+    'Reply with ONE sentence, max 18 words, cold and slightly amused. No quotes, no emoji.';
+  try {
+    const raw = await fetchText(prompt, 12000);
+    return raw.replace(/["<>]/g, "").replace(/\s+/g, " ").trim().slice(0, 200) || "The arena has no comment.";
+  } catch {
+    return "The gatekeeper declines to comment on that performance.";
+  }
+}
+
+/* -------------------------------- game -------------------------------- */
+
+const canvas = $("arena");
+const ctx = canvas.getContext("2d");
+
+const state = {
+  mode: "idle",           // idle | running | over
+  ruleset: null,
+  rules: [],
+  seconds: 60,
+  elapsed: 0,
+  score: 0,
+  orbs: 0,
+  strikes: 0,
+  idleFor: 0,
+  shrinkInset: 0,
+  rampAt: false,
+  lastWallStrike: -Infinity,
+  best: Number(localStorage.getItem("gatekeeper.best") || 0),
+  player: { x: 0, y: 0, vx: 0, vy: 0 },
+  orbsList: [],
+  spawnTimer: 0,
+  backdrop: null,
+  pointer: { active: false, x: 0, y: 0 },
+  keys: new Set(),
+  lastFrame: 0,
+};
+
+function resize() {
+  const rect = $("stage").getBoundingClientRect();
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  canvas.width = Math.max(320, Math.floor(rect.width * dpr));
+  canvas.height = Math.max(320, Math.floor(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  state.width = rect.width;
+  state.height = rect.height;
+  if (state.mode !== "running") {
+    state.player.x = rect.width / 2;
+    state.player.y = rect.height / 2;
+  }
+}
+window.addEventListener("resize", resize);
+
+function bounds() {
+  const inset = state.shrinkInset;
+  return { x0: inset, y0: inset, x1: state.width - inset, y1: state.height - inset };
+}
+
+function ruleOf(kind) { return state.rules.find((rule) => rule.kind === kind); }
+
+function scoringColor() {
+  const only = ruleOf("only_color");
+  return (only && only.color) || CONFIG.defaultScoreColor;
+}
+function hazardColor() {
+  const dodge = ruleOf("dodge_color");
+  return (dodge && dodge.color) || CONFIG.defaultHazardColor;
+}
+
+function spawnOrb() {
+  const scoring = scoringColor();
+  const hazard = hazardColor();
+  const pool = [scoring, scoring, scoring, scoring, hazard, hazard, pick(Object.keys(PALETTE))];
+  const color = pick(pool);
+  const pad = 26;
+  const area = bounds();
+  let x = 0, y = 0, tries = 0;
+  do {
+    x = area.x0 + pad + Math.random() * Math.max(1, area.x1 - area.x0 - pad * 2);
+    y = area.y0 + pad + Math.random() * Math.max(1, area.y1 - area.y0 - pad * 2);
+    tries++;
+  } while (tries < 12 && Math.hypot(x - state.player.x, y - state.player.y) < 90);
+  state.orbsList.push({
+    x, y, r: CONFIG.orbRadius, color,
+    vx: (Math.random() - 0.5) * 34, vy: (Math.random() - 0.5) * 34,
+    born: state.elapsed,
+  });
+}
+
+function strike(reason) {
+  state.strikes++;
+  flash(reason);
+  if (state.strikes >= CONFIG.maxStrikes) endRun("eliminated");
+}
+
+let flashUntil = 0, flashText = "";
+function flash(reason) { flashText = reason; flashUntil = state.elapsed + 0.5; }
+
+function startRun(ruleset) {
+  state.ruleset = ruleset;
+  state.rules = ruleset.rules;
+  state.mode = "running";
+  state.elapsed = 0;
+  state.seconds = CONFIG.roundSeconds;
+  state.score = 0;
+  state.orbs = 0;
+  state.strikes = 0;
+  state.idleFor = 0;
+  state.shrinkInset = 0;
+  state.rampAt = false;
+  state.lastWallStrike = -Infinity;
+  state.orbsList = [];
+  state.spawnTimer = 0;
+  state.player = { x: state.width / 2, y: state.height / 2, vx: 0, vy: 0 };
+  state.backdrop = null;
+  $("rules-title").textContent = ruleset.name + " — terms";
+  $("rules-list").innerHTML = ruleset.rules
+    .map((rule) => "<li>" + escapeHtml(rule.text) + (rule.color ? " <i>[" + rule.color + "]</i>" : "") + "</li>")
+    .join("");
+  $("rules").hidden = false;
+  $("screen-start").hidden = true;
+  $("screen-end").hidden = true;
+  updateHud();
+  state.lastFrame = performance.now();
+  requestAnimationFrame(loop);
+
+  const seed = Math.abs(hashString(ruleset.name + ruleset.rules.map((r) => r.kind + r.color).join()));
+  loadImage(imageUrl(
+    "top-down view of a dark neon arena for a 60 second survival arcade game, " +
+    "mood: " + ruleset.name + ", " + (ruleset.flavour || "cold and clinical") +
+    ", brutalist concrete grid, volumetric haze, no text, no letters, no watermark, high contrast",
+    seed % 999983,
+  )).then((image) => { if (image) state.backdrop = image; });
+}
+
+function escapeHtml(text) {
+  return String(text).replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[ch]));
+}
+function hashString(text) {
+  let hash = 0;
+  for (let i = 0; i < text.length; i++) hash = (hash * 31 + text.charCodeAt(i)) | 0;
+  return hash;
+}
+
+function endRun(outcome) {
+  state.mode = "over";
+  const finalScore = Math.floor(state.score);
+  if (finalScore > state.best) { state.best = finalScore; localStorage.setItem("gatekeeper.best", String(state.best)); }
+  $("rules").hidden = true;
+  $("end-kicker").textContent = outcome === "eliminated" ? "Three strikes" : "Round complete";
+  $("end-title").innerHTML = outcome === "eliminated" ? "The gate <em>closed</em>" : "You <em>survived</em>";
+  $("end-time").textContent = state.elapsed.toFixed(1) + "s";
+  $("end-score").textContent = String(finalScore);
+  $("end-orbs").textContent = String(state.orbs);
+  $("end-strikes").textContent = state.strikes + "/" + CONFIG.maxStrikes;
+  $("end-best").textContent = "best " + state.best;
+  $("pill-best").textContent = "best " + state.best;
+  $("end-terms").innerHTML = state.rules
+    .map((rule) => "<li>" + escapeHtml(rule.text) + (rule.color ? " <i>[" + rule.color + "]" : "") + "</li>")
+    .join("");
+  $("screen-end").hidden = false;
+
+  const shareText = "I " + (outcome === "eliminated" ? "was eliminated" : "survived " + state.elapsed.toFixed(0) + "s") +
+    " under GATEKEEPER's terms — " + state.rules.map((rule) => "\u201c" + rule.text + "\u201d").join(" / ") +
+    ". Score " + finalScore + ".";
+  $("share-text").textContent = shareText;
+  $("share-text").dataset.copy = shareText;
+
+  const verdict = $("verdict");
+  verdict.className = "pending";
+  verdict.textContent = "the gatekeeper is judging your run…";
+  generateVerdict({
+    outcome: outcome === "eliminated" ? "was eliminated" : "survived",
+    seconds: state.elapsed,
+    score: state.score,
+    terms: state.rules.map((rule) => rule.text),
+  }).then((text) => { verdict.className = ""; verdict.textContent = text; });
+}
+
+function updateHud() {
+  $("hud-time").textContent = Math.max(0, CONFIG.roundSeconds - state.elapsed).toFixed(1);
+  $("hud-score").textContent = String(Math.floor(state.score));
+  $("hud-strikes").textContent = state.strikes + "/" + CONFIG.maxStrikes;
+}
+
+function step(dt) {
+  state.elapsed += dt;
+  state.score += CONFIG.scorePerSecond * dt;
+
+  const reverse = ruleOf("reverse") ? -1 : 1;
+  const player = state.player;
+
+  // input: pointer/touch steers directly; keyboard nudges.
+  let ax = 0, ay = 0;
+  if (state.pointer.active) {
+    const dx = state.pointer.x - player.x, dy = state.pointer.y - player.y;
+    const distance = Math.hypot(dx, dy);
+    if (distance > 4) { ax = (dx / distance) * CONFIG.accel; ay = (dy / distance) * CONFIG.accel; }
+  }
+  const keys = state.keys;
+  if (keys.has("a") || keys.has("arrowleft")) ax -= CONFIG.accel;
+  if (keys.has("d") || keys.has("arrowright")) ax += CONFIG.accel;
+  if (keys.has("w") || keys.has("arrowup")) ay -= CONFIG.accel;
+  if (keys.has("s") || keys.has("arrowdown")) ay += CONFIG.accel;
+
+  player.vx = (player.vx + ax * reverse * dt) * CONFIG.friction;
+  player.vy = (player.vy + ay * reverse * dt) * CONFIG.friction;
+  const speed = Math.hypot(player.vx, player.vy);
+  if (speed > CONFIG.maxSpeed) {
+    player.vx = (player.vx / speed) * CONFIG.maxSpeed;
+    player.vy = (player.vy / speed) * CONFIG.maxSpeed;
+  }
+  player.x += player.vx * dt;
+  player.y += player.vy * dt;
+
+  const area = bounds();
+  const hitWall =
+    player.x - CONFIG.playerRadius < area.x0 || player.x + CONFIG.playerRadius > area.x1 ||
+    player.y - CONFIG.playerRadius < area.y0 || player.y + CONFIG.playerRadius > area.y1;
+  player.x = Math.min(Math.max(player.x, area.x0 + CONFIG.playerRadius), area.x1 - CONFIG.playerRadius);
+  player.y = Math.min(Math.max(player.y, area.y0 + CONFIG.playerRadius), area.y1 - CONFIG.playerRadius);
+  if (hitWall && ruleOf("shrink")) { if (state.elapsed > state.lastWallStrike + 1.2) { state.lastWallStrike = state.elapsed; strike("the wall"); } }
+
+  // moving is mandatory under no_stop
+  if (ruleOf("no_stop")) {
+    if (Math.hypot(player.vx, player.vy) < 24) {
+      state.idleFor += dt;
+      if (state.idleFor > CONFIG.idleStrikeSeconds) { state.idleFor = 0; strike("you stood still"); }
+    } else state.idleFor = 0;
+  }
+
+  // walls close in
+  if (ruleOf("shrink")) {
+    state.shrinkInset = Math.min(state.shrinkInset + dt * 3.4, Math.min(state.width, state.height) * 0.3);
+  }
+
+  // spawn
+  const ramped = ruleOf("ramp") && state.elapsed > CONFIG.roundSeconds / 2;
+  const interval = CONFIG.spawnEvery * (ramped ? CONFIG.spawnRampEvery : 1);
+  state.spawnTimer += dt;
+  while (state.spawnTimer >= interval) {
+    state.spawnTimer -= interval;
+    if (state.orbsList.length < CONFIG.maxOrbs) spawnOrb();
+  }
+
+  // orbs
+  const scoring = scoringColor();
+  for (let i = state.orbsList.length - 1; i >= 0; i--) {
+    const orb = state.orbsList[i];
+    orb.x += orb.vx * dt; orb.y += orb.vy * dt;
+    if (orb.x < area.x0 + orb.r || orb.x > area.x1 - orb.r) orb.vx *= -1;
+    if (orb.y < area.y0 + orb.r || orb.y > area.y1 - orb.r) orb.vy *= -1;
+    orb.x = Math.min(Math.max(orb.x, area.x0 + orb.r), area.x1 - orb.r);
+    orb.y = Math.min(Math.max(orb.y, area.y0 + orb.r), area.y1 - orb.r);
+
+    if (Math.hypot(orb.x - player.x, orb.y - player.y) < orb.r + CONFIG.playerRadius) {
+      state.orbsList.splice(i, 1);
+      if (orb.color === hazardColor()) { strike("you touched " + orb.color); }
+      else if (orb.color === scoring) { state.orbs++; state.score += CONFIG.scorePerOrb; }
+      else { state.score += 2; }
+    }
+  }
+
+  updateHud();
+  if (state.elapsed >= CONFIG.roundSeconds) endRun("survived");
+}
+
+function render() {
+  const width = state.width, height = state.height;
+  ctx.clearRect(0, 0, width, height);
+
+  ctx.fillStyle = "#07080a";
+  ctx.fillRect(0, 0, width, height);
+
+  if (state.backdrop) {
+    ctx.globalAlpha = 0.22;
+    ctx.drawImage(state.backdrop, 0, 0, width, height);
+    ctx.globalAlpha = 1;
+  }
+
+  // grid
+  ctx.strokeStyle = "rgba(255,255,255,0.045)";
+  ctx.lineWidth = 1;
+  const gridStep = 46;
+  for (let x = 0; x < width; x += gridStep) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+  for (let y = 0; y < height; y += gridStep) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+
+  const area = bounds();
+  ctx.strokeStyle = state.rules.some((r) => r.kind === "shrink") ? "rgba(255,77,61,0.55)" : "rgba(216,255,62,0.30)";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(area.x0, area.y0, area.x1 - area.x0, area.y1 - area.y0);
+
+  // orbs
+  for (const orb of state.orbsList) {
+    const age = Math.min(1, (state.elapsed - orb.born) * 6);
+    ctx.globalAlpha = 0.25 + age * 0.75;
+    ctx.beginPath();
+    ctx.arc(orb.x, orb.y, orb.r, 0, Math.PI * 2);
+    ctx.fillStyle = PALETTE[orb.color] || "#999";
+    ctx.fill();
+    ctx.globalAlpha = 1;
+  }
+
+  // player
+  const player = state.player;
+  ctx.save();
+  ctx.shadowColor = "rgba(216,255,62,0.85)";
+  ctx.shadowBlur = 18;
+  ctx.fillStyle = "#d8ff3e";
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, CONFIG.playerRadius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+  ctx.strokeStyle = "rgba(7,8,10,0.85)";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.arc(player.x, player.y, CONFIG.playerRadius - 4, 0, Math.PI * 2);
+  ctx.stroke();
+
+  if (state.elapsed < flashUntil && flashText) {
+    ctx.fillStyle = "rgba(255,77,61,0.92)";
+    ctx.font = "600 15px ui-monospace, monospace";
+    ctx.textAlign = "center";
+    ctx.fillText("STRIKE — " + flashText, width / 2, height - 26);
+    ctx.textAlign = "left";
+  }
+}
+
+function loop(now) {
+  if (state.mode !== "running") { render(); return; }
+  const dt = Math.min(0.05, (now - state.lastFrame) / 1000);
+  state.lastFrame = now;
+  step(dt);
+  render();
+  if (state.mode === "running") requestAnimationFrame(loop);
+}
+
+/* -------------------------------- input -------------------------------- */
+
+window.addEventListener("keydown", (event) => {
+  const key = event.key.toLowerCase();
+  state.keys.add(key);
+  if (["arrowup", "arrowdown", "arrowleft", "arrowright", " "].includes(key)) event.preventDefault();
+});
+window.addEventListener("keyup", (event) => state.keys.delete(event.key.toLowerCase()));
+window.addEventListener("blur", () => state.keys.clear());
+
+function pointerMove(event) {
+  const rect = canvas.getBoundingClientRect();
+  const point = event.touches ? event.touches[0] : event;
+  if (!point) return;
+  state.pointer.active = true;
+  state.pointer.x = point.clientX - rect.left;
+  state.pointer.y = point.clientY - rect.top;
+}
+// Steering follows a held pointer or a drag. A bare mouse move must not hijack
+// the keyboard, so activation only happens on press/touch.
+canvas.addEventListener("pointerdown", pointerMove);
+canvas.addEventListener("pointermove", (event) => { if (event.buttons > 0) pointerMove(event); });
+window.addEventListener("pointerup", () => { state.pointer.active = false; });
+window.addEventListener("pointercancel", () => { state.pointer.active = false; });
+canvas.addEventListener("touchmove", (event) => { pointerMove(event); event.preventDefault(); }, { passive: false });
+canvas.addEventListener("touchend", () => { state.pointer.active = false; });
+
+/* ------------------------------- front end ------------------------------ */
+
+function dailySeed() {
+  const now = new Date();
+  return "daily-" + now.getUTCFullYear() + "-" + (now.getUTCMonth() + 1) + "-" + now.getUTCDate();
+}
+
+async function begin(useDaily) {
+  const button = $("btn-begin");
+  const free = $("btn-free");
+  button.disabled = true; free.disabled = true;
+  button.textContent = "The gatekeeper is writing…";
+  const seedString = useDaily ? dailySeed() : "free-" + Math.random().toString(36).slice(2, 10);
+  const cacheKey = "gatekeeper.rules." + seedString;
+
+  let ruleset = null;
+  if (useDaily) {
+    try { ruleset = JSON.parse(localStorage.getItem(cacheKey) || "null"); } catch { ruleset = null; }
+    if (ruleset) setState("cached daily terms");
+  }
+  if (!ruleset) {
+    ruleset = await generateRuleset(seedString);
+    if (useDaily && ruleset.written === "gatekeeper") {
+      try { localStorage.setItem(cacheKey, JSON.stringify(ruleset)); } catch {}
+    }
+  }
+
+  button.disabled = false; free.disabled = false;
+  button.textContent = "Read the terms & begin";
+  resize();
+  startRun(ruleset);
+}
+
+$("btn-begin").addEventListener("click", () => begin(true));
+$("btn-free").addEventListener("click", () => begin(false));
+$("btn-again").addEventListener("click", () => {
+  $("screen-end").hidden = true;
+  $("screen-start").hidden = false;
+  $("source-state").textContent = "terms: idle";
+});
+$("btn-copy").addEventListener("click", async () => {
+  const text = $("share-text").dataset.copy || $("share-text").textContent;
+  const button = $("btn-copy");
+  try { await navigator.clipboard.writeText(text); button.textContent = "Copied"; }
+  catch { button.textContent = "Select & copy"; }
+  setTimeout(() => { button.textContent = "Copy"; }, 1600);
+});
+
+$("pill-best").textContent = "best " + state.best;
+resize();
+render();
+</script>
+</body>
+</html>
