@@ -206,12 +206,12 @@ const IMAGE_MODEL = "openai/gpt-image-1-mini";
 
 // Connect User Wallets (BYOP): the player authorizes this app to spend a small
 // budget of their own Pollen, so the app needs no backend and no secret key.
-// Replace clientId with the App Key (pk_...) registered against this exact
-// redirect URI at enter.pollinations.ai/keys.
+// This is the publishable App Key registered against the Redirect URI below;
+// a pk_ is public by design and is the OAuth client_id, not a credential.
 const AUTH = {
   authorize: "https://enter.pollinations.ai/authorize",
   token: "https://enter.pollinations.ai/api/oauth/token",
-  clientId: "pk_REPLACE_WITH_APP_KEY",
+  clientId: "pk_SApp5GJqW6pHpHdR",
   redirectUri: location.origin + location.pathname,
   scope: "usage",
   storageKey: "gatekeeper.token",

@@ -40,9 +40,10 @@ The app owner pays nothing and never sees the player's account; the player can r
 from their dashboard at any time. Generation needs no scope, so the request only asks for
 `usage`.
 
-**Setup:** the App Key (`pk_...`) must be registered at `enter.pollinations.ai/keys` with the
-Redirect URI `https://khuzaima3232.github.io/gatekeeper/` (an exact match — for local testing,
-loopback matches any port). It goes in `AUTH.clientId` at the top of `index.html`.
+**Setup:** the App Key (`pk_...`) is registered at `enter.pollinations.ai/keys` with the Redirect
+URI `https://khuzaima3232.github.io/gatekeeper/` (an exact match — for local testing, loopback
+matches any port). It lives in `AUTH.clientId` at the top of `index.html`. A `pk_` is publishable
+by design: it identifies the app as the OAuth `client_id` and is not a credential.
 
 ## The design idea
 
